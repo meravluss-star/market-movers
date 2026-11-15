@@ -19,6 +19,7 @@ This is a static demo page on GitHub Pages with a daily GitHub Actions job. It d
 | Price charts and history | Only the last trading day is shown |
 | Written analysis of *why* each stock moved | Headlines and Alpha Vantage news sentiment for each stock (§4.3); no AI or human analysis |
 | Paid Alpha Vantage data (premium endpoints, more than 25 requests a day) | Free plan only, at most 20 requests per run (§2.2) |
+| Alpha Vantage news (`NEWS_SENTIMENT`): premium-only on the free plan (confirmed 2026-11-15) | The job asks once per run; when refused, cards show "No major headlines found…" (§4.3). Starting data has hand-added headlines |
 | Investment advice or trading | Information only; the footer says so |
 | Exact update time | GitHub runs scheduled jobs on a best-effort basis; the run can start some minutes after 22:30 UTC |
 
@@ -38,8 +39,8 @@ Anyone who wants a quick, phone-friendly look at "what was hot on Wall Street to
 |---|---|---|
 | Most active stocks, price, change, % change, volume | `TOP_GAINERS_LOSERS` (`most_actively_traded`) | The list of 10 stocks and their numbers |
 | Stock vs. ETF, company name | `LISTING_STATUS` | Removes ETFs; name when no profile exists yet |
-| News and sentiment | `NEWS_SENTIMENT` (one request per stock, `tickers=<symbol>`) | "In the news: why it moved" |
-| Company profile | `COMPANY_OVERVIEW` | About text, exchange, sector, industry, market cap |
+| News and sentiment | `NEWS_SENTIMENT` (one request per stock, `tickers=<symbol>`). **Premium-only on the free plan**: see §2.2 | "In the news: why it moved" |
+| Company profile | `OVERVIEW` | About text, exchange, sector, industry, market cap |
 
 **Selection rules** (applied to the 20 most actively traded tickers, in order of share volume):
 1. Common stocks only: **ETFs are removed** (asset type from `LISTING_STATUS`).
@@ -55,11 +56,11 @@ The Alpha Vantage free plan allows **25 requests per day**. The update job never
 |---|---|---|
 | Most active stocks | 1 | Every run |
 | Stock/ETF list | 1 | Once every 7 days |
-| News, one per stock | up to 10 | Every new trading day |
+| News, one per stock | 1 while news is premium-only (up to 10 if it becomes available) | Every new trading day |
 | Company profiles | whatever is left of the 20 | Only for stocks with no profile, or a profile older than 30 days |
-| **Total** | **≤ 20** | Typical day: 12–15 |
+| **Total** | **≤ 20** | Typical day: 2–5 (first days: up to 13, while profiles are filled) |
 
-If the trading day returned by Alpha Vantage is already saved (weekend, holiday, or a second run), the job stops after **1 request**. If a request is refused (limit message), that stock keeps an empty news list or its cached profile, and the run still saves the rest.
+If the trading day returned by Alpha Vantage is already saved (weekend, holiday, or a second run), the job stops after **1 request**. If a request is refused, that stock keeps an empty news list or its cached profile, and the run still saves the rest. If Alpha Vantage says a function is **premium-only** or **unknown**, that function is not requested again in the same run; if it says the **daily limit** is reached, no further requests are made in that run.
 
 ### 2.3 Schedule
 
@@ -146,7 +147,7 @@ Gray placeholder cards while loading. If the data cannot be loaded: a message an
 WCAG 2.2 AA: page language `en`, "Skip to the stock list" link, headings in order (h1 → h2 → h3 per ticker → h4 sections), filter buttons use `aria-pressed`, list updates announced (`aria-live`), visible focus ring, reduced motion respected, full keyboard use.
 
 ## 6. Tests
-`python tests/test_update.py` (runs at the start of every workflow run) checks: ETFs and sub-$0.50 shares are removed and the 10 are ordered by volume; at most 20 requests; a same-day rerun uses 1 request; cached listing and profiles are not requested again; a limit message for one stock does not stop the run; `AV_MAX_CALLS` is never exceeded; a missing API key fails with a clear message and writes nothing.
+`python tests/test_update.py` (runs at the start of every workflow run) checks: ETFs and sub-$0.50 shares are removed and the 10 are ordered by volume; at most 20 requests; a same-day rerun uses 1 request; cached listing and profiles are not requested again; a limit message for one stock does not stop the run; premium-only news is requested only once; a daily-limit message stops all further requests; a per-second limit does not; profiles use the real `OVERVIEW` function; `AV_MAX_CALLS` is never exceeded; a missing API key fails with a clear message and writes nothing.
 
 ## 7. Acceptance Criteria
 

@@ -56,12 +56,38 @@ class ApiError(Exception):
     """Alpha Vantage returned an error, a limit message or no data."""
 
 
+class EndpointUnavailable(ApiError):
+    """The function is premium-only or unknown, or the daily limit is used up.
+    No further requests are made for it in this run."""
+
+
 calls = 0
+blocked = {}          # function -> reason; "*" = every function (daily limit reached)
+
+
+def classify(function, message):
+    """Turn an Alpha Vantage message into the right exception."""
+    low = message.lower()
+    if "per second" in low or "per minute" in low or "sparingly" in low:
+        return ApiError(f"{function}: short-term rate limit: {message[:120]}")
+    if "per day" in low or "daily" in low:
+        blocked["*"] = "daily request limit reached"
+        return EndpointUnavailable(f"{function}: daily request limit reached; no more requests this run")
+    if "premium" in low:
+        blocked[function] = "premium-only on the free plan"
+        return EndpointUnavailable(f"{function}: premium-only on the free plan; skipped for the rest of this run")
+    if "does not exist" in low:
+        blocked[function] = "unknown function"
+        return EndpointUnavailable(f"{function}: unknown function; skipped for the rest of this run")
+    return ApiError(f"{function}: {message[:200]}")
 
 
 def call(function, **params):
     """One Alpha Vantage request. Counts against the per-run budget."""
     global calls
+    reason = blocked.get("*") or blocked.get(function)
+    if reason:
+        raise EndpointUnavailable(f"{function}: not requested ({reason})")
     if calls >= MAX_CALLS:
         raise BudgetExceeded(function)
     calls += 1
@@ -84,13 +110,13 @@ def call(function, **params):
     print(f"  request {calls}/{MAX_CALLS}: {label}")
     if function == "LISTING_STATUS":
         if not text.lstrip().lower().startswith("symbol"):
-            raise ApiError(f"{label}: {text[:200]}")
+            raise classify(function, text)
         return text
     data = json.loads(text)
     if isinstance(data, dict):
         for k in ("Note", "Information", "Error Message"):
             if k in data:
-                raise ApiError(f"{label}: {str(data[k])[:200]}")
+                raise classify(function, str(data[k]))
     return data
 
 
@@ -288,7 +314,7 @@ def main():
         if current and not is_stale(current.get("updated"), PROFILE_MAX_AGE_DAYS):
             continue
         try:
-            p = profile_from_overview(call("COMPANY_OVERVIEW", symbol=sym))
+            p = profile_from_overview(call("OVERVIEW", symbol=sym))
             if p:
                 profiles[sym] = p
             elif not current:

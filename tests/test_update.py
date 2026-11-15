@@ -48,7 +48,7 @@ check(latest["tradingDate"] == "2026-11-13", "trading date read from last_update
 check(latest["apiCalls"] <= 20, f"stays within 20 requests (used {latest['apiCalls']})")
 check(latest["seed"] is False, "seed flag is false after a real run")
 nvda = latest["stocks"][0]
-check(nvda["name"] == "NVIDIA Corporation" and nvda["sector"] == "TECHNOLOGY", "profile merged from COMPANY_OVERVIEW")
+check(nvda["name"] == "NVIDIA Corporation" and nvda["sector"] == "TECHNOLOGY", "profile merged from OVERVIEW (the real Alpha Vantage function name)")
 check(nvda["description"] == "Test company description, first sentence. Second sentence here.",
       f"description cut to two sentences: {nvda['description']!r}")
 check([n["url"] for n in nvda["news"]] == ["https://example.com/c", "https://example.com/a"],
@@ -66,7 +66,7 @@ check(code == 0 and "already saved" in out and "request 2/" not in out, "same-da
 
 # 3. FORCE rerun: listing and NVDA profile come from cache.
 code, out = run(d, FORCE="1")
-check(code == 0 and "LISTING_STATUS" not in out and "COMPANY_OVERVIEW NVDA" not in out,
+check(code == 0 and "LISTING_STATUS" not in out and "OVERVIEW NVDA" not in out,
       "cached listing and fresh profiles are not requested again")
 check(read(d)["apiCalls"] <= 20, "forced run stays within budget")
 
@@ -85,7 +85,42 @@ p = subprocess.run([sys.executable, SCRIPT], env=env, capture_output=True, text=
 check(p.returncode == 1 and "ALPHA_VANTAGE_KEY" in p.stdout, "missing key gives a clear error")
 check(not os.path.exists(os.path.join(d3, "latest.json")), "no data written when the key is missing")
 
-for x in (d, d2, d3):
+
+def fixtures_with(overrides):
+    """Copy of the fixtures folder with some responses replaced."""
+    f = tempfile.mkdtemp()
+    for name in os.listdir(FIXTURES):
+        shutil.copy(os.path.join(FIXTURES, name), f)
+    for name, body in overrides.items():
+        with open(os.path.join(f, name), "w", encoding="utf-8") as fh:
+            json.dump(body, fh)
+    return f
+
+
+# 6. Premium-only news: asked once, then skipped; profiles still requested.
+premium = {"Information": "Thank you for using Alpha Vantage! This is a premium endpoint. You may subscribe to any of the premium plans."}
+f6 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": premium})
+d6 = tempfile.mkdtemp()
+code, out = run(d6, AV_FIXTURES=f6)
+check(code == 0 and out.count(": NEWS_SENTIMENT ") == 1, "premium-only news is requested only once per run")
+check(": OVERVIEW NVDA" in out and read(d6)["stocks"][0]["sector"] == "TECHNOLOGY", "profiles still loaded after news is refused")
+
+# 7. Daily limit reached mid-run: no further requests, data still saved.
+daily = {"Information": "We have detected your API key as XXX and our standard API rate limit is 25 requests per day."}
+f7 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": daily})
+d7 = tempfile.mkdtemp()
+code, out = run(d7, AV_FIXTURES=f7)
+check(code == 0 and "request 4/" not in out, "daily-limit message stops all further requests")
+check(len(read(d7)["stocks"]) == 10, "data still saved after the daily limit")
+
+# 8. Short-term (per-second) limit for one stock is not treated as the daily limit.
+burst = {"Information": "Please consider spreading out your free API requests more sparingly (1 request per second). 25 requests per day."}
+f8 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": burst})
+d8 = tempfile.mkdtemp()
+code, out = run(d8, AV_FIXTURES=f8)
+check(code == 0 and ": NEWS_SENTIMENT INTC" in out, "per-second limit does not stop the other requests")
+
+for x in (d, d2, d3, f6, d6, f7, d7, f8, d8):
     shutil.rmtree(x, ignore_errors=True)
 print(f"\n{len(failures)} failure(s)")
 sys.exit(1 if failures else 0)

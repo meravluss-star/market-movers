@@ -11,13 +11,13 @@ A friendly, mobile-first page in English that shows the 10 most actively traded 
 - **Top 10 most active stocks**: ranked by share volume. ETFs, warrants and shares under $0.50 are left out.
 - **Clear up/down marking**: green ▲ with + for gains, red ▼ with − for losses (never color alone), with % change, $ change and price.
 - **Bold names**: ticker and company name in bold on every card.
-- **Why it moved**: up to 3 news headlines per stock from Alpha Vantage, with source, date and news sentiment (Bullish … Bearish); each opens the article.
+- **Why it moved**: up to 3 news headlines per stock, with source, date and news sentiment (Bullish … Bearish); each opens the article. Note: Alpha Vantage news is premium-only on the free plan, so after the first automatic update cards show "No major headlines found…" (see Limitations).
 - **About the company**: a 1–2 sentence description, exchange, sector, industry and market cap.
 - **Summary tiles**: number of gainers and losers, top gainer and top loser.
 - **Filter and sort**: All / Gainers / Losers; sort by volume, biggest gain, biggest loss, price or ticker.
 - **Mobile friendly**: one column on phones and tablets, two columns on desktop, white background, touch targets of at least 56 px.
 - **Automatic daily update**: a GitHub Actions job runs Monday–Friday at 22:30 UTC (after the US close), fetches the data and commits it, which updates the live page.
-- **Stays on the free plan**: at most 20 Alpha Vantage requests per run (free limit: 25 per day). It skips the run with 1 request if the trading day is already saved, and caches company profiles (30 days) and the ETF list (7 days).
+- **Stays on the free plan**: at most 20 Alpha Vantage requests per run (free limit: 25 per day). It skips the run with 1 request if the trading day is already saved, caches company profiles (30 days) and the ETF list (7 days), and stops asking for a function that Alpha Vantage refuses as premium-only, or for anything at all once the daily limit is reached.
 
 ## Setup: Alpha Vantage key
 
@@ -31,7 +31,7 @@ The daily job needs a free Alpha Vantage API key, stored as a GitHub repository 
 
 - End-of-day data only, no live prices or charts. The page shows the starting data (Nov 13, 2026, marked with a yellow notice) until the first automatic run.
 - The free key allows 25 requests a day **in total**. If the same key is also used elsewhere on the same day, some news or profiles may be skipped that day.
-- "Why it moved" lists headlines, not a written analysis. For information only, not investment advice.
+- Alpha Vantage news (`NEWS_SENTIMENT`) is premium-only on the free plan, so the daily update cannot fill "Why it moved". It lists headlines, not a written analysis. For information only, not investment advice.
 - The full list is in the spec's **§0 Out of Scope**.
 
 ## Project files
