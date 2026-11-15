@@ -89,6 +89,8 @@ def call(function, **params):
     if calls >= MAX_CALLS:
         raise BudgetExceeded(function)
     calls += 1
+    label = function + "".join(" " + params[k] for k in ("symbol", "tickers") if k in params)
+    print(f"  request {calls}/{MAX_CALLS}: {label}", flush=True)
     if FIXTURES:
         suffix = "".join("_" + params[k] for k in ("symbol", "tickers") if k in params)
         ext = ".csv" if function == "LISTING_STATUS" else ".json"
@@ -104,8 +106,6 @@ def call(function, **params):
         req = urllib.request.Request(API + "?" + query, headers={"User-Agent": "market-movers-dashboard"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             text = resp.read().decode("utf-8")
-    label = function + "".join(" " + params[k] for k in ("symbol", "tickers") if k in params)
-    print(f"  request {calls}/{MAX_CALLS}: {label}")
     if function == "LISTING_STATUS":
         if not text.lstrip().lower().startswith("symbol"):
             raise classify(function, text)
