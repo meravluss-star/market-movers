@@ -51,11 +51,11 @@ nvda = latest["stocks"][0]
 check(nvda["name"] == "NVIDIA Corporation" and nvda["sector"] == "TECHNOLOGY", "profile merged from OVERVIEW (the real Alpha Vantage function name)")
 check(nvda["description"] == "Test company description, first sentence. Second sentence here.",
       f"description cut to two sentences: {nvda['description']!r}")
-check([n["url"] for n in nvda["news"]] == ["https://example.com/c", "https://example.com/a"],
-      "low-relevance news removed, newest first")
+check("NEWS_SENTIMENT" not in out and all("news" not in s for s in latest["stocks"]), "no news requests and no news in the data")
+check(latest["apiCalls"] == 12, f"first run: 1 movers + 1 listing + 10 profiles = 12 requests (used {latest['apiCalls']})")
 check(nvda["change"] == -3.34 and nvda["changePercent"] == -2.0097, "change and percent parsed")
 check(latest["stocks"][1]["name"] == "Onfolio Holdings Inc", "name falls back to the listing when no profile")
-check(latest["stocks"][5]["news"] == [], "rate-limit message for one stock does not stop the run")
+check(latest["stocks"][5]["name"] == "Intel Corp" and ": OVERVIEW CRWV" in out, "an error for one stock does not stop the run")
 with open(os.path.join(d, "cache.json"), encoding="utf-8") as f:
     cache = json.load(f)
 check(cache["listing"]["SOXL"][0] == "ETF" and cache["listingUpdated"], "listing cached")
@@ -97,17 +97,17 @@ def fixtures_with(overrides):
     return f
 
 
-# 6. Premium-only news: asked once, then skipped; profiles still requested.
+# 6. Function refused as premium-only: asked once, then skipped for the rest of the run.
 premium = {"Information": "Thank you for using Alpha Vantage! This is a premium endpoint. You may subscribe to any of the premium plans."}
-f6 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": premium})
+f6 = fixtures_with({"OVERVIEW_NVDA.json": premium})
 d6 = tempfile.mkdtemp()
 code, out = run(d6, AV_FIXTURES=f6)
-check(code == 0 and out.count(": NEWS_SENTIMENT ") == 1, "premium-only news is requested only once per run")
-check(": OVERVIEW NVDA" in out and read(d6)["stocks"][0]["sector"] == "TECHNOLOGY", "profiles still loaded after news is refused")
+check(code == 0 and out.count(": OVERVIEW ") == 1, "premium-only function is requested only once per run")
+check(len(read(d6)["stocks"]) == 10, "data still saved after a premium-only refusal")
 
 # 7. Daily limit reached mid-run: no further requests, data still saved.
 daily = {"Information": "We have detected your API key as XXX and our standard API rate limit is 25 requests per day."}
-f7 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": daily})
+f7 = fixtures_with({"OVERVIEW_NVDA.json": daily})
 d7 = tempfile.mkdtemp()
 code, out = run(d7, AV_FIXTURES=f7)
 check(code == 0 and "request 4/" not in out, "daily-limit message stops all further requests")
@@ -115,10 +115,10 @@ check(len(read(d7)["stocks"]) == 10, "data still saved after the daily limit")
 
 # 8. Short-term (per-second) limit for one stock is not treated as the daily limit.
 burst = {"Information": "Please consider spreading out your free API requests more sparingly (1 request per second). 25 requests per day."}
-f8 = fixtures_with({"NEWS_SENTIMENT_NVDA.json": burst})
+f8 = fixtures_with({"OVERVIEW_NVDA.json": burst})
 d8 = tempfile.mkdtemp()
 code, out = run(d8, AV_FIXTURES=f8)
-check(code == 0 and ": NEWS_SENTIMENT INTC" in out, "per-second limit does not stop the other requests")
+check(code == 0 and ": OVERVIEW ONFO" in out, "per-second limit does not stop the other requests")
 
 for x in (d, d2, d3, f6, d6, f7, d7, f8, d8):
     shutil.rmtree(x, ignore_errors=True)

@@ -1,7 +1,7 @@
 # Market Movers — Daily Top 10 Most Active US Stocks
 
-**Spec version:** 1.0 · **Date:** 2026-11-15
-**Purpose:** A friendly, mobile-first page that shows the 10 most actively traded US stocks of the last trading day. For each stock it shows whether it went up or down, by how much, the news that may explain the move, and a short description of the company. Everything is in English. Data comes from Alpha Vantage and is refreshed automatically once per trading day after the US market closes, within the Alpha Vantage free plan.
+**Spec version:** 1.1 · **Date:** 2026-11-15 (1.1: news removed, Alpha Vantage news is premium-only on the free plan; 1.0: first version)
+**Purpose:** A friendly, mobile-first page that shows the 10 most actively traded US stocks of the last trading day. For each stock it shows whether it went up or down, by how much, and a short description of the company. It does not show news. Everything is in English. Data comes from Alpha Vantage and is refreshed automatically once per trading day after the US market closes, within the Alpha Vantage free plan.
 
 **Live page:** https://meravluss-star.github.io/market-movers/
 
@@ -17,9 +17,8 @@ This is a static demo page on GitHub Pages with a daily GitHub Actions job. It d
 | A server or database | Data is saved as JSON files in the repository (`data/`) by a GitHub Actions job |
 | User accounts, watchlists, alerts | One public page, same for everyone |
 | Price charts and history | Only the last trading day is shown |
-| Written analysis of *why* each stock moved | Headlines and Alpha Vantage news sentiment for each stock (§4.3); no AI or human analysis |
+| News, headlines and reasons *why* a stock moved | Not shown. Alpha Vantage news (`NEWS_SENTIMENT`) is premium-only on the free plan (confirmed 2026-11-15), so the page has no news section and the job never requests news |
 | Paid Alpha Vantage data (premium endpoints, more than 25 requests a day) | Free plan only, at most 20 requests per run (§2.2) |
-| Alpha Vantage news (`NEWS_SENTIMENT`): premium-only on the free plan (confirmed 2026-11-15) | The job asks once per run; when refused, cards show "No major headlines found…" (§4.3). Starting data has hand-added headlines |
 | Investment advice or trading | Information only; the footer says so |
 | Exact update time | GitHub runs scheduled jobs on a best-effort basis; the run can start some minutes after 22:30 UTC |
 
@@ -39,7 +38,6 @@ Anyone who wants a quick, phone-friendly look at "what was hot on Wall Street to
 |---|---|---|
 | Most active stocks, price, change, % change, volume | `TOP_GAINERS_LOSERS` (`most_actively_traded`) | The list of 10 stocks and their numbers |
 | Stock vs. ETF, company name | `LISTING_STATUS` | Removes ETFs; name when no profile exists yet |
-| News and sentiment | `NEWS_SENTIMENT` (one request per stock, `tickers=<symbol>`). **Premium-only on the free plan**: see §2.2 | "In the news: why it moved" |
 | Company profile | `OVERVIEW` | About text, exchange, sector, industry, market cap |
 
 **Selection rules** (applied to the 20 most actively traded tickers, in order of share volume):
@@ -56,11 +54,10 @@ The Alpha Vantage free plan allows **25 requests per day**. The update job never
 |---|---|---|
 | Most active stocks | 1 | Every run |
 | Stock/ETF list | 1 | Once every 7 days |
-| News, one per stock | 1 while news is premium-only (up to 10 if it becomes available) | Every new trading day |
-| Company profiles | whatever is left of the 20 | Only for stocks with no profile, or a profile older than 30 days |
-| **Total** | **≤ 20** | Typical day: 2–5 (first days: up to 13, while profiles are filled) |
+| Company profiles | up to 10 (never more than what is left of the 20) | Only for stocks with no profile, or a profile older than 30 days |
+| **Total** | **≤ 20** | Typical day: 1–5 (first run: 12, while profiles are filled) |
 
-If the trading day returned by Alpha Vantage is already saved (weekend, holiday, or a second run), the job stops after **1 request**. If a request is refused, that stock keeps an empty news list or its cached profile, and the run still saves the rest. If Alpha Vantage says a function is **premium-only** or **unknown**, that function is not requested again in the same run; if it says the **daily limit** is reached, no further requests are made in that run.
+If the trading day returned by Alpha Vantage is already saved (weekend, holiday, or a second run), the job stops after **1 request**. If a request is refused, that stock keeps its cached profile (or the name from the stock list), and the run still saves the rest. If Alpha Vantage says a function is **premium-only** or **unknown**, that function is not requested again in the same run; if it says the **daily limit** is reached, no further requests are made in that run.
 
 ### 2.3 Schedule
 
@@ -78,7 +75,7 @@ If the trading day returned by Alpha Vantage is already saved (weekend, holiday,
 | `scripts/update_stocks.py` | Update script (Python standard library only) |
 | `tests/test_update.py` + `fixtures/` | Tests with saved sample responses |
 
-**Starting data:** until the first automatic run, `latest.json` holds the Nov 13, 2026 prices from Alpha Vantage, with company summaries and headlines added by hand. It has `"seed": true`, and the page shows a yellow notice saying so. The first automatic run replaces it.
+**Starting data:** until the first automatic run, `latest.json` holds the Nov 13, 2026 prices from Alpha Vantage, with company summaries added by hand. It has `"seed": true`, and the page shows a yellow notice saying so. The first automatic run replaces it.
 
 ## 3. Look and feel
 
@@ -92,7 +89,7 @@ If the trading day returned by Alpha Vantage is already saved (weekend, holiday,
 | Down (loss) | **Red ▼ and a − sign**, text `#C5221F` on `#FCE8E6` |
 | Unchanged | Gray ■, text `#5F6368` on `#F1F3F4` |
 | Color is never the only signal | Every change shows an arrow and a +/− sign as well as color; screen readers hear "up 2.34 percent" / "down …" |
-| Touch targets | Every button, the sort menu and every headline link are at least **56 px** tall (buttons also ≥ 56 px wide) |
+| Touch targets | Every button and the sort menu are at least **56 px** tall (buttons also ≥ 56 px wide) |
 | Text | Body 16 px; secondary text at least 13 px; all text passes 4.5 : 1 contrast |
 
 ### 3.1 Layout
@@ -112,8 +109,6 @@ If the trading day returned by Alpha Vantage is already saved (weekend, holiday,
 │     NASDAQ · Technology          −$3.34      │
 │     Volume 360.8M · Market cap · Rank #1     │
 │     ABOUT  short company description         │
-│     IN THE NEWS: WHY IT MOVED                │
-│     • Headline (source · date · sentiment)   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -132,7 +127,7 @@ Title "Market Movers", subtitle, and a line with the trading day (e.g. "Friday, 
 Gainers count (▲, green), Losers count (▼, red), Top gainer (biggest % gain, ticker + name), Top loser (biggest % loss, ticker + name).
 
 ### 4.3 Stock card
-Rank, **ticker**, **company name**, exchange · sector · industry, price, % change pill, $ change, volume, market cap (when known), "About" (first 1–2 sentences of the company description, max 300 characters), and "In the news: why it moved": up to **3** headlines from the trading day and the day before, with relevance to the stock ≥ 0.2, newest first. Each headline shows its source, date and Alpha Vantage sentiment (Bullish / Somewhat Bullish / Neutral / Somewhat Bearish / Bearish) and opens in a new tab. When there is no news: "No major headlines found for this stock on this trading day."
+Rank, **ticker**, **company name**, exchange · sector · industry, price, % change pill, $ change, volume, market cap (when known), "About" (first 1–2 sentences of the company description, max 300 characters). When no profile has been loaded yet: "Company profile will be added in the next update." No news section.
 
 ### 4.4 Filter and sort
 Filter: All / ▲ Gainers / ▼ Losers (with counts). Sort: Volume (default), Biggest gain, Biggest loss, Price, Ticker A–Z.
@@ -147,19 +142,19 @@ Gray placeholder cards while loading. If the data cannot be loaded: a message an
 WCAG 2.2 AA: page language `en`, "Skip to the stock list" link, headings in order (h1 → h2 → h3 per ticker → h4 sections), filter buttons use `aria-pressed`, list updates announced (`aria-live`), visible focus ring, reduced motion respected, full keyboard use.
 
 ## 6. Tests
-`python tests/test_update.py` (runs at the start of every workflow run) checks: ETFs and sub-$0.50 shares are removed and the 10 are ordered by volume; at most 20 requests; a same-day rerun uses 1 request; cached listing and profiles are not requested again; a limit message for one stock does not stop the run; premium-only news is requested only once; a daily-limit message stops all further requests; a per-second limit does not; profiles use the real `OVERVIEW` function; `AV_MAX_CALLS` is never exceeded; a missing API key fails with a clear message and writes nothing.
+`python tests/test_update.py` (runs at the start of every workflow run) checks: ETFs and sub-$0.50 shares are removed and the 10 are ordered by volume; at most 20 requests; a same-day rerun uses 1 request; cached listing and profiles are not requested again; an error for one stock does not stop the run; no news is requested; a function refused as premium-only is requested only once; a daily-limit message stops all further requests; a per-second limit does not; profiles use the real `OVERVIEW` function; `AV_MAX_CALLS` is never exceeded; a missing API key fails with a clear message and writes nothing.
 
 ## 7. Acceptance Criteria
 
 1. The page shows the 10 most actively traded US common stocks of the last trading day, ordered by volume, with **no ETFs, warrants, or shares under $0.50** (§2.1).
-2. Each card shows the **bold ticker** (weight 800, 22/24 px) and **bold company name** (weight 700, 16 px), price, % change, $ change, volume, an About text, and up to 3 headlines, or the "no headlines" message (§4.3).
+2. Each card shows the **bold ticker** (weight 800, 22/24 px) and **bold company name** (weight 700, 16 px), price, % change, $ change, volume, and an About text; there is **no news section** (§4.3).
 3. Gains show **green ▲ with +**, losses **red ▼ with −**, in the colors in §3; never color alone.
 4. The page background is **white** on phone, tablet and desktop.
 5. All text on the page is in **English**.
 6. At **375 px** width there is no horizontal scroll and cards are one column; at **≥ 1024 px** cards are in 2 columns.
-7. Every button, the sort menu and every headline link are **≥ 56 px** tall; buttons are also ≥ 56 px wide (including **Try again**).
+7. Every button and the sort menu are **≥ 56 px** tall; buttons are also ≥ 56 px wide (including **Try again**).
 8. Filters (All / Gainers / Losers) and all 5 sort options work, and the counts match the summary tiles.
-9. The update job runs Monday–Friday at 22:30 UTC, makes **at most 20** Alpha Vantage requests per run (free plan: 25/day), and makes only **1** request when the trading day is already saved (§2.2).
+9. The update job runs Monday–Friday at 22:30 UTC, never requests news, makes **at most 20** Alpha Vantage requests per run (free plan: 25/day), and makes only **1** request when the trading day is already saved (§2.2).
 10. After a successful run, `data/latest.json` has the new trading date, `"seed": false`, and the live page shows it.
 11. The API key is only in the repository secret `ALPHA_VANTAGE_KEY`, never in the code or the page.
 12. The tests in §6 pass before every update.

@@ -42,8 +42,6 @@ FORCE = os.environ.get("FORCE", "") in ("1", "true", "True")
 
 TOP_N = 10                 # stocks shown on the dashboard
 MIN_PRICE = 0.50           # skip sub-50-cent shares
-NEWS_PER_STOCK = 3         # headlines per stock
-MIN_RELEVANCE = 0.2        # Alpha Vantage ticker relevance score (0-1)
 LISTING_MAX_AGE_DAYS = 7   # refresh the stock/ETF list weekly
 PROFILE_MAX_AGE_DAYS = 30  # refresh company profiles monthly
 
@@ -196,40 +194,6 @@ def short_description(text, max_len=300):
     return out
 
 
-def news_time(stamp):
-    """'20261113T153000' -> '2026-11-13T15:30:00'."""
-    m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?", stamp or "")
-    if not m:
-        return ""
-    y, mo, d, h, mi, s = m.groups()
-    return f"{y}-{mo}-{d}T{h}:{mi}:{s or '00'}"
-
-
-def pick_news(feed, sym):
-    items = []
-    for a in feed or []:
-        ts = next((t for t in a.get("ticker_sentiment", []) if t.get("ticker") == sym), None)
-        relevance = to_float(ts.get("relevance_score"), 0) if ts else 0
-        if relevance < MIN_RELEVANCE or not a.get("title") or not a.get("url"):
-            continue
-        summary = re.sub(r"\s+", " ", a.get("summary") or "").strip()
-        if len(summary) > 280:
-            summary = summary[:279].rsplit(" ", 1)[0] + "…"
-        items.append({
-            "title": a["title"].strip(),
-            "url": a["url"],
-            "source": a.get("source", ""),
-            "time": news_time(a.get("time_published", "")),
-            "summary": summary,
-            "sentiment": (ts.get("ticker_sentiment_label") if ts else "") or "",
-            "relevance": round(relevance, 3),
-        })
-    items.sort(key=lambda n: (-n["relevance"], n["time"]), reverse=False)
-    top = items[:NEWS_PER_STOCK]
-    top.sort(key=lambda n: n["time"], reverse=True)
-    return top
-
-
 def profile_from_overview(o):
     if not isinstance(o, dict) or not o.get("Symbol"):
         return None
@@ -290,23 +254,7 @@ def main():
     picked.sort(key=lambda m: to_float(m.get("volume"), 0), reverse=True)
     picked = picked[:TOP_N]
 
-    # 3. News for each stock (up to 10 requests).
-    day = dt.date.fromisoformat(trading_date)
-    time_from = (day - dt.timedelta(days=1)).strftime("%Y%m%dT0000")
-    news = {}
-    for m in picked:
-        sym = m["ticker"]
-        try:
-            data = call("NEWS_SENTIMENT", tickers=sym, time_from=time_from, sort="LATEST", limit="50")
-            news[sym] = pick_news(data.get("feed"), sym)
-        except BudgetExceeded:
-            warnings.append(f"News skipped for {sym}: request limit reached")
-            news[sym] = []
-        except (ApiError, OSError, ValueError) as e:
-            warnings.append(f"News failed for {sym}: {e}")
-            news[sym] = []
-
-    # 4. Company profiles: only missing or older than 30 days (uses what is left of the budget).
+    # 3. Company profiles: only missing or older than 30 days (uses what is left of the budget).
     profiles = cache["profiles"]
     for m in picked:
         sym = m["ticker"]
@@ -343,7 +291,6 @@ def main():
             "industry": p.get("industry", ""),
             "marketCap": p.get("marketCap"),
             "description": p.get("description", ""),
-            "news": news.get(sym, []),
         })
 
     out = {

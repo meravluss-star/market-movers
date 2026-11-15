@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#FFFFFF">
-<meta name="description" content="Market Movers: the 10 most actively traded US stocks each trading day, with price change, news and a short company profile. Data from Alpha Vantage.">
+<meta name="description" content="Market Movers: the 10 most actively traded US stocks each trading day, with price change and a short company profile. Data from Alpha Vantage.">
 <title>Market Movers: Top 10 Most Active US Stocks</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231A73E8'/%3E%3Cpath d='M6 22l6-7 5 4 9-10' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
@@ -108,20 +108,6 @@
   .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
   .sec { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; font-weight: 700; }
   .about { margin: 0; font-size: 15px; }
-  .news { list-style: none; margin: 0; padding: 0; }
-  .news li + li { border-top: 1px solid var(--border); }
-  .news a {
-    display: flex; flex-direction: column; justify-content: center; min-height: var(--tap); padding: 8px 0;
-    color: var(--text); text-decoration: none;
-  }
-  .news a:hover .headline, .news a:focus-visible .headline { text-decoration: underline; color: var(--brand); }
-  .headline { font-weight: 600; font-size: 15px; line-height: 1.35; }
-  .nmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; color: var(--muted); margin-top: 3px; }
-  .nsum { font-size: 14px; color: var(--muted); margin-top: 3px; }
-  .sent { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: 12px; }
-  .sent.bull { color: var(--up); background: var(--up-bg); }
-  .sent.bear { color: var(--down); background: var(--down-bg); }
-  .sent.neutral { color: var(--flat); background: var(--flat-bg); }
   .empty { color: var(--muted); font-size: 14px; margin: 0; }
 
   .state { text-align: center; padding: 40px 16px; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius); }
@@ -222,7 +208,6 @@
   const listEl = $("#stocks");
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : "#";
   const dir = (v) => (v > 0 ? "up" : v < 0 ? "down" : "flat");
   const arrow = (v) => (v > 0 ? "▲" : v < 0 ? "▼" : "■");
   const word = (v) => (v > 0 ? "up" : v < 0 ? "down" : "unchanged");
@@ -253,13 +238,6 @@
     const d = new Date(iso.slice(0, 10) + "T12:00:00Z");
     return d.toLocaleDateString("en-US", { timeZone: "UTC", ...opts });
   }
-  function sentiment(label) {
-    if (!label) return "";
-    const cls = /bull/i.test(label) ? "bull" : /bear/i.test(label) ? "bear" : "neutral";
-    const icon = cls === "bull" ? "▲ " : cls === "bear" ? "▼ " : "";
-    return `<span class="sent ${cls}" title="News sentiment">${icon}${esc(label.replace(/-/g, " "))}</span>`;
-  }
-
   function renderMeta(d) {
     const day = fmtDay(d.tradingDate, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
     const gen = d.generatedAt ? new Date(d.generatedAt) : null;
@@ -296,12 +274,6 @@
   function card(s) {
     const d = dir(s.changePercent);
     const tags = [s.exchange, titleCase(s.sector), titleCase(s.industry)].filter(Boolean).map(esc).join(" · ");
-    const news = (s.news || []).map((n) => `
-      <li><a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener noreferrer">
-        <span class="headline">${esc(n.title)}</span>
-        ${n.summary ? `<span class="nsum">${esc(n.summary)}</span>` : ""}
-        <span class="nmeta">${n.source ? `<span>${esc(n.source)}</span>` : ""}${n.time ? `<span>${esc(fmtDay(n.time, { month: "short", day: "numeric" }))}</span>` : ""}${sentiment(n.sentiment)}<span class="sr">(opens in a new tab)</span></span>
-      </a></li>`).join("");
     return `
     <li class="card" aria-labelledby="t-${esc(s.ticker)}">
       <div class="top">
@@ -324,8 +296,6 @@
       </div>
       <h4 class="sec">About</h4>
       <p class="about">${s.description ? esc(s.description) : '<span class="empty">Company profile will be added in the next update.</span>'}</p>
-      <h4 class="sec">In the news: why it moved</h4>
-      ${news ? `<ul class="news">${news}</ul>` : '<p class="empty">No major headlines found for this stock on this trading day.</p>'}
     </li>`;
   }
 
